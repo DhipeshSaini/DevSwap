@@ -1,0 +1,8 @@
+{
+  "name": "Devswap",
+  "description": "A skill-bartering platform for creatives and developers to exchange expertise and build together.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

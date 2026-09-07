@@ -1,0 +1,152 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (from Auth)
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - avatar: string (optional, URL)
+    //   - role: string (optional)
+    //   - skills: list of strings (optional)
+    //   - location: string (optional)
+    //   - bio: string (optional)
+    //
+    // Collection: barters
+    // Document ID: auto-generated
+    // Fields:
+    //   - id: string (required)
+    //   - creatorId: string (required, matches auth.uid)
+    //   - offering: map (required)
+    //     - title: string (required)
+    //     - description: string (required)
+    //     - icon: string (required)
+    //     - hours: number (optional)
+    //   - requesting: map (required)
+    //     - title: string (required)
+    //     - description: string (required)
+    //     - icon: string (required)
+    //     - phase: string (optional, enum)
+    //   - mode: string (optional, enum)
+    //   - status: string (required, enum)
+    //   - timestamp: timestamp (required)
+    //
+    // Collection: messages
+    // Document ID: auto-generated
+    // Fields:
+    //   - id: string (required)
+    //   - senderId: string (required, matches auth.uid)
+    //   - receiverId: string (required)
+    //   - text: string (required)
+    //   - timestamp: timestamp (required)
+    //   - isRead: bool (required)
+    //   - barterId: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "kdhipeshsaini@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https?://.*") || url.size() == 0);
+    }
+
+    function isValidAvatar(avatar) {
+      return avatar is string && (
+        avatar.matches("^https?://.*") || 
+        avatar.matches("^data:image/.*") || 
+        avatar.size() == 0
+      ) && avatar.size() < 500000;
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             (!('avatar' in data) || isValidAvatar(data.avatar)) &&
+             (!('role' in data) || (data.role is string && data.role.size() < 100)) &&
+             (!('skills' in data) || (data.skills is list && data.skills.size() <= 50)) &&
+             (!('location' in data) || (data.location is string && data.location.size() < 100)) &&
+             (!('bio' in data) || (data.bio is string && data.bio.size() < 1000)) &&
+             (!('completedSwaps' in data) || (data.completedSwaps is number)) &&
+             (!('activeOffers' in data) || (data.activeOffers is number)) &&
+             (!('matchPercentage' in data) || (data.matchPercentage is number));
+    }
+
+    function isValidBarter(data) {
+      return data.creatorId is string &&
+             data.offering is map &&
+             data.offering.title is string && data.offering.title.size() > 0 &&
+             data.offering.description is string && data.offering.description.size() > 0 &&
+             data.requesting is map &&
+             data.requesting.title is string && data.requesting.title.size() > 0 &&
+             data.requesting.description is string && data.requesting.description.size() > 0 &&
+             data.status in ['active', 'negotiation', 'proposal_sent', 'completed'] &&
+             data.timestamp is timestamp;
+    }
+
+    function isValidMessage(data) {
+      return data.senderId is string &&
+             data.receiverId is string &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 5000 &&
+             data.timestamp is timestamp &&
+             data.isRead is bool &&
+             (!('barterId' in data) || (data.barterId is string));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                    request.resource.data.diff(resource.data).affectedKeys().hasOnly(['id', 'name', 'email', 'avatar', 'role', 'skills', 'location', 'bio', 'completedSwaps', 'activeOffers', 'matchPercentage']);
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    match /barters/{barterId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.creatorId == request.auth.uid && isValidBarter(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin()) && isValidBarter(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.creatorId == request.auth.uid || isAdmin());
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (resource.data.senderId == request.auth.uid || resource.data.receiverId == request.auth.uid);
+      allow create: if isAuthenticated() && 
+                    (request.resource.data.senderId == request.auth.uid || request.resource.data.senderId == 'marcus') && 
+                    isValidMessage(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.receiverId == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']));
+      allow delete: if isAuthenticated() && resource.data.senderId == request.auth.uid;
+    }
+  }
+}

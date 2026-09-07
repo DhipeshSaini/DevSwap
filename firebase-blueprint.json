@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "avatar": { "type": "string", "description": "URL or Data URI of the user avatar" },
+        "role": { "type": "string" },
+        "skills": { "type": "array", "items": { "type": "string" } },
+        "location": { "type": "string" },
+        "bio": { "type": "string" },
+        "matchPercentage": { "type": "number" },
+        "completedSwaps": { "type": "number" },
+        "activeOffers": { "type": "number" }
+      },
+      "required": ["id", "name", "email"]
+    },
+    "Barter": {
+      "title": "Barter",
+      "description": "A skill exchange request",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "creatorId": { "type": "string" },
+        "offering": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "icon": { "type": "string" },
+            "hours": { "type": "number" }
+          }
+        },
+        "requesting": {
+          "type": "object",
+          "properties": {
+            "title": { "type": "string" },
+            "description": { "type": "string" },
+            "icon": { "type": "string" },
+            "phase": { "type": "string", "enum": ["Ideation", "MVP", "Scaling"] }
+          }
+        },
+        "mode": { "type": "string", "enum": ["Remote", "In-person"] },
+        "status": { "type": "string", "enum": ["active", "negotiation", "proposal_sent", "completed"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["creatorId", "offering", "requesting", "status"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A chat message between users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "isRead": { "type": "boolean" },
+        "barterId": { "type": "string" }
+      },
+      "required": ["senderId", "receiverId", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/barters/{barterId}": {
+      "schema": "Barter",
+      "description": "Skill exchange requests"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Chat messages"
+    }
+  }
+}
